@@ -39,10 +39,18 @@ Workflow API（`agent()`/`parallel()`/`phase()`/`meta`/schema/model）は `~/mas
 信用せず、自分のリポの実働コードで検証済み）。`Workflow` はセッション共通のツール一覧には
 出ず、skill の `allowed-tools` に明示したときだけ使える。
 
+## 実装済み（v2 第二弾）
+
+- **discover skill（loop-until-dry）**: `skills/discover/SKILL.md`。未知件数の発見系探索
+  （bug hunt / セキュリティ監査等）を、新規findingが尽きるまで3レンズ並列fan-outで周回する。
+  安全装置2つ: (1) round cap（既定8、dry streakに関わらず絶対に止まる上限）、
+  (2) dedupeは「既見全体」（確定済みだけでなく未採用も含む）に対して行う——「確定済み」に
+  対してdedupeすると reject された finding が毎ラウンド再発見されて loop が永遠に乾かない
+  （記事の警告そのもの）。phase graphには組み込まないオンデマンドツール（done gateの外）。
+  3レンズ全てmodel:'opus'（tiering: advisor・verifier・discover=opus）。
+
 ## 未実装（次の候補）
 
-- **loop-until-dry**: 発見系の探索ループ（未実装）を足すならround cap必須 + dedupeは
-  「確定済み」でなく「既に見た全体」に対して行う（無限空転バグの回避）。
 - **headless(`claude -p`)モードでの steer 継続**: `/advisor` を実際に呼ぶアクションが無い
   headless実行だと、loop-driverのexit 2 steerがモデルに行動を促せず空回りしてtimeoutする
   ことを確認済み（インタラクティブセッションでは問題にならない想定だが未検証）。

@@ -1,0 +1,18 @@
+{
+  "name": "tazawa-masayoshi-graphhopper",
+  "owner": {
+    "name": "tazawa-masayoshi"
+  },
+  "metadata": {
+    "description": "graphhopper — flywheel 後継の graph engineering plugin（v1 minimal core）",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "graphhopper",
+      "description": "flywheel 後継の graph engineering plugin。TypeScript グラフエンジンで phase 遷移を計算し、done 直前の検証は council ではなく built-in /advisor（単体・強モデル）に委譲してコストを抑える。",
+      "version": "0.1.0",
+      "source": "./"
+    }
+  ]
+}

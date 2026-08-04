@@ -1,0 +1,11 @@
+{
+  "phases": ["designing", "implementing", "polish", "done"],
+  "initial": "designing",
+  "edges": [
+    { "from": "designing", "event": "source_edit", "to": "implementing" },
+    { "from": "implementing", "event": "eval_fail", "to": "implementing" },
+    { "from": "implementing", "event": "eval_pass", "to": "polish" },
+    { "from": "polish", "event": "verdict_drift", "to": "implementing" },
+    { "from": "polish", "event": "verdict_clean", "to": "done" }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "description": "graphhopper hooks — design-gate (C-2相当のsourceブロック) + loop-driver (eval→advisor→done)",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/design-gate.sh",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/loop-driver.sh",
+            "timeout": 600000
+          }
+        ]
+      }
+    ]
+  }
+}

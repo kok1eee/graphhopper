@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# bin/graphhopper — 薄い CLI ラッパー。実体は graph-engine/src/engine.ts（TypeScript, bun実行）。
+# repo root検出・state.json/history.jsonlの読み書き・phase遷移は全てengine.ts側の責務。
+
+_gh_src="${BASH_SOURCE[0]:-$0}"
+GH_PLUGIN_ROOT="$(cd "$(dirname "$_gh_src")/.." && pwd)"
+unset _gh_src
+
+if command -v bun >/dev/null 2>&1; then
+  GH_BUN="bun"
+elif [[ -x "$HOME/.local/share/mise/shims/bun" ]]; then
+  GH_BUN="$HOME/.local/share/mise/shims/bun"
+else
+  echo "error: bun not found in PATH" >&2
+  exit 1
+fi
+
+exec "$GH_BUN" "$GH_PLUGIN_ROOT/graph-engine/src/engine.ts" "$@"

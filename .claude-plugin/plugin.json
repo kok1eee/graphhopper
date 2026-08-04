@@ -1,0 +1,15 @@
+{
+  "name": "graphhopper",
+  "version": "0.1.0",
+  "description": "flywheel 後継の graph engineering plugin。TypeScript グラフエンジンで phase 遷移を計算し、done 直前の検証は council ではなく built-in /advisor（単体・強モデル）に委譲してコストを抑える。C-2相当のdesign-gateは維持。",
+  "author": {
+    "name": "tazawa-masayoshi"
+  },
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "graph-engineering",
+    "loop",
+    "design-gate"
+  ]
+}

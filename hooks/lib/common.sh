@@ -28,6 +28,12 @@ fi
 
 gh_state_exists() { [[ -f "$GH_STATE" ]]; }
 
+# headless(`claude -p`)実行等でGRAPHHOPPER_OFF=1が明示されていればhookを完全に無効化する。
+# print/headlessモードをhookから自動検出する公式な方法は無い（session_id等のJSONフィールド・
+# env varどちらにも indicator が無いことを調査済み）ため、自動判定より明示 opt-out を選ぶ。
+# flywheel の FLYWHEEL_OFF=1 と同じ設計。
+gh_disabled() { [[ "${GRAPHHOPPER_OFF:-}" == "1" ]]; }
+
 # stdin から渡された hook 入力 JSON 全体をキャッシュして返す（複数回呼んでもstdinは1回しか読めないため呼び出し側で1回だけ使う想定）
 gh_read_hook_input() { cat; }
 

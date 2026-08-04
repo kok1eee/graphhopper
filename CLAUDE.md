@@ -29,11 +29,23 @@ council の再発になる（トークンコストの再燃）。**判断は「�
 ## state machine
 
 ```
-designing → implementing → eval ⇄(fail) → (advisor: clean→done / drift→implementing)
+designing → implementing ⇄(eval fail) → polish [router gate]
+  diff小 → built-in /advisor 単体          → clean: done / drift: implementing
+  diff大 → Skill: polish (verifier fan-out) → clean: done / drift: implementing
 ```
 
 C-2相当の不変条件: designing 中は `hooks/design-gate.sh` が source 編集を物理ブロックする。
 `.graphhopper/` への直接編集も全phaseで禁止（状態変更は `bin/graphhopper` CLI 経由のみ）。
+
+## headless (`claude -p`) では GRAPHHOPPER_OFF=1 を使う
+
+`claude -p` のような print/headless モードは `/advisor` を対話的に呼び続ける前提が成立せず、
+`loop-driver.sh` の steer ループが空回りして timeout する（実際に再現・確認済み）。
+print/headless モードを hook から自動検出する公式な方法は無い（session_id 等の JSON
+フィールド・env var どちらにも indicator が無いことを調査済み）ため、自動判定より
+明示 opt-out を選ぶ。headless 実行時は `GRAPHHOPPER_OFF=1` を明示すると
+`design-gate.sh` / `loop-driver.sh` が即 exit 0 になる（flywheel の `FLYWHEEL_OFF=1` と同じ
+設計。`hooks/lib/common.sh` の `gh_disabled()`）。
 
 ## 詳細
 

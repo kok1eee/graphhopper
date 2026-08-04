@@ -2,34 +2,53 @@
 
 v1（最小コア）で確認済みの前提: 判断は「メイン対話 + `/advisor`」の2層で足りる
 （`CLAUDE.md` の agent minimalism 原則）。v2 は polish/simplify council を復活させる際の
-実装方式のメモ。まだ実装しない。
+実装方式のメモ。
 
-## polish/simplify council は Dynamic Workflows で実装する
+## 実装済み（v2 第一弾）
 
-専用 subagent（code-reuse/code-quality/efficiency 相当）をゼロから作らない。
-Claude Code built-in の **Dynamic Workflows**（`agent()` + `parallel()`/`pipeline()`）を使う。
-オーケストレーション自体がコードなので、配線を考える分のトークンを払わない。
+- **router gate**: `hooks/loop-driver.sh` が polish phase で `baseline_rev` からの
+  diff行数を計測し、閾値（`GH_POLISH_THRESHOLD`、既定40行）以下なら built-in `/advisor`
+  単体、閾値超なら `Skill: polish` へ誘導する。コードの if 文が判定するので、モデルの
+  自己判断で council を削る/増やすという禁止事項自体が問題にならない。
+- **verifier パターン**（adversarial / diverse-lens）: `skills/polish/SKILL.md` が
+  built-in `Workflow` ツール（`agent()` + `parallel()`、オーケストレーションはコードなので
+  トークン0）で3レンズ（要件/挙動/進捗）の fan-out を実行する。専用 subagent
+  （code-reuse/code-quality/efficiency 相当）は作らない——「配管を専用agentに分ける」
+  とは別物で、同じ判断を複数の独立した目で検証する**判断の分散**であり、agent
+  minimalism 原則には抵触しない（`CLAUDE.md` 参照）。
+- **verdict の一般化**: `state.verdict = {source: "advisor"|"verifier", level, reason, ts}`。
+  loop-driver は source を問わず同じロジックで処理する。
+- **per-node model tiering**: `main=sonnet`（session既定）/ `researcher=haiku`
+  （`agents/researcher.md`）/ `advisor・verifier=opus`（built-in `/advisor` と
+  `skills/polish` の3レンズ全て `model: 'opus'` 明示）。判断が要るnodeだけ高コスト
+  モデルに残す。
+- **fan-out上限**: `skills/polish` に `MAX_LENSES` 定数（5）。超えたら安全側でdrift扱い
+  にしてスクリプト側で止める。今は3レンズ固定なので実害は無いが歯止めとして機能する。
+- **edge contract fallback**: `schema` によるstructured output強制に加え、
+  (1) 全レンズエラー時はdrift安全側、(2) 部分成功時は欠落レンズをreasonに明記、
+  (3) Workflow自体がerror/空を返したら無言でcleanにすり替えずdrift記録、をSKILL.mdに明文化。
+- **v1のライブ動作確認**: `~/.claude/plugins/known_marketplaces.json`（directory-source）
+  + `settings.json` の `enabledPlugins` に登録（flywheelと同方式）。`claude -p` ヘッドレス
+  起動で実セッション検証済み: (1) design.md無しでのsource編集を`design-gate.sh`が実際に
+  ブロック、(2) design.md作成後は許可されimplementingへ自動遷移、(3) eval green後
+  `loop-driver.sh`が`eval_pass`をhistory.jsonlに記録しpolish phaseへ遷移。旧flywheelは
+  `enabledPlugins`で無効化済み（marketplace登録は残置、再有効化可能）。
 
-- **verifier パターン**（adversarial / diverse-lens / judge panel）で判断を分散する。
-  これは「配管を専用agentに分ける」（designer/critic を切り出す）とは別物——
-  同じ判断を複数の独立した目で検証する**判断の分散**であり、agent minimalism 原則には
-  抵触しない。CLAUDE.md に追記済み。
-- **router node で無条件発火をやめる**: verifier を呼ぶ前に、コードで
-  diff規模・runnable かどうかを判定し、閾値以下なら verifier 呼び出し自体を丸ごとスキップ
-  する（`agent()` を1つも呼ばないので完全にゼロコスト）。現行 flywheel の `lite`/`targeted`
-  モード（steer明示が無いとモデルが自己判断できない制約付き）より単純かつ確実——
-  コードのif文が判定するので「モデルの自己判断で council を削る」という禁止事項自体が
-  問題にならない。
-- **edge contract**: fan-outが復活したら、subagentが返すJSONをzod等で検証してから使う
-  （flywheel-opencodeの`flywheel_extract_finding`相当）。生テキストをhand-parseしない。
-- **loop-until-dry**: 発見系の探索ループを回すならround cap必須 + dedupeは「確定済み」
-  でなく「既に見た全体」に対して行う（無限空転バグの回避）。
-- **per-node model tiering**: Dynamic Workflowsの`model`上書きで、繰り返し系nodeは安い
-  モデル、synthesize/verifyだけ高コストモデルに残す。
-- **fan-out上限**: 同時実行・累計呼び出しに具体的なガードレールを持つ（暴走防止）。
+Workflow API（`agent()`/`parallel()`/`phase()`/`meta`/schema/model）は `~/masayoshi/flywheel`
+の `skills/ultrawork/SKILL.md` で実働確認済みの実 API に基づく（記事の snippet をそのまま
+信用せず、自分のリポの実働コードで検証済み）。`Workflow` はセッション共通のツール一覧には
+出ず、skill の `allowed-tools` に明示したときだけ使える。
+
+## 未実装（次の候補）
+
+- **loop-until-dry**: 発見系の探索ループ（未実装）を足すならround cap必須 + dedupeは
+  「確定済み」でなく「既に見た全体」に対して行う（無限空転バグの回避）。
+- **headless(`claude -p`)モードでの steer 継続**: `/advisor` を実際に呼ぶアクションが無い
+  headless実行だと、loop-driverのexit 2 steerがモデルに行動を促せず空回りしてtimeoutする
+  ことを確認済み（インタラクティブセッションでは問題にならない想定だが未検証）。
 
 ## opencode / pi アダプタ
 
-別ディレクトリ・別セッションで後日。Dynamic Workflows は Claude Code 固有機能のため、
+別ディレクトリ・別セッションで後日。Workflow は Claude Code 固有機能のため、
 opencode/pi版では別の仕組み（flywheel-opencodeの`task()`ベースfan-out等）で同等の
 verifierパターンを実装する必要がある。

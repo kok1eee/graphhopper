@@ -9,6 +9,8 @@ here="$(dirname "${BASH_SOURCE[0]}")"
 # shellcheck source=lib/common.sh
 source "$here/lib/common.sh"
 
+gh_disabled && exit 0
+
 input="$(gh_read_hook_input)"
 file_path="$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.notebook_path // ""')"
 

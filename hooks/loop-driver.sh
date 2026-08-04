@@ -13,6 +13,8 @@ here="$(dirname "${BASH_SOURCE[0]}")"
 # shellcheck source=lib/common.sh
 source "$here/lib/common.sh"
 
+gh_disabled && exit 0
+
 GH_POLISH_THRESHOLD="${GH_POLISH_THRESHOLD:-40}"
 
 gh_state_exists || exit 0

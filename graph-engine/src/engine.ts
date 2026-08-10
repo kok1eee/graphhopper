@@ -44,6 +44,8 @@ export interface State {
   eval_cmd: string;
   baseline_rev: string;
   verdict: Verdict | null;
+  /** polish フェーズで simplify を実行済みか（goal につき1回。polish に入る遷移で false にリセット） */
+  polished: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -204,6 +206,7 @@ export function initState(goal: string): State {
     eval_cmd: "",
     baseline_rev: currentRev(root),
     verdict: null,
+    polished: false,
     created_at: ts,
     updated_at: ts,
   };
@@ -248,6 +251,10 @@ export function transition(event: string): State {
       // polish フェーズに入る/出る以外の遷移では verdict を持ち越さない
       state.verdict = null;
     }
+    if (edge.to === "polish") {
+      // polish に入るたび simplify をリセット（goal につき1回だけ simplify する）
+      state.polished = false;
+    }
   }
   saveState(state, event, from);
   return state;
@@ -275,6 +282,7 @@ function formatStatus(state: State): string {
         ? `${state.verdict.source}:${state.verdict.level} — ${state.verdict.reason}`
         : "(pending)"
     }`,
+    `polished: ${state.polished}`,
     `updated_at: ${state.updated_at}`,
   ].join("\n");
 }
@@ -306,6 +314,25 @@ function main(): void {
       }
       const value = getField(loadState(), path);
       console.log(typeof value === "string" ? value : JSON.stringify(value));
+      break;
+    }
+    case "set": {
+      const field = args[0];
+      const value = args[1];
+      if (field === "polished") {
+        if (value !== "true" && value !== "false") {
+          console.error("usage: engine.ts set polished <true|false>");
+          process.exitCode = 1;
+          break;
+        }
+        const state = loadState();
+        state.polished = value === "true";
+        saveState(state, "set_polished", state.phase);
+        console.log(`polished set to ${state.polished}`);
+      } else {
+        console.error(`unknown field: ${field}`);
+        process.exitCode = 1;
+      }
       break;
     }
     case "set-eval": {
@@ -365,7 +392,7 @@ function main(): void {
     }
     default: {
       console.error(
-        "usage: engine.ts <init|status|get|set-eval|advisor-set|verifier-set|diff-lines|transition|reset> [args...]",
+        "usage: engine.ts <init|status|get|set|set-eval|advisor-set|verifier-set|diff-lines|transition|reset> [args...]",
       );
       process.exitCode = 1;
     }

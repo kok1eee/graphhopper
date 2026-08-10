@@ -48,6 +48,13 @@ Workflow API（`agent()`/`parallel()`/`phase()`/`meta`/schema/model）は `~/mas
   対してdedupeすると reject された finding が毎ラウンド再発見されて loop が永遠に乾かない
   （記事の警告そのもの）。phase graphには組み込まないオンデマンドツール（done gateの外）。
   3レンズ全てmodel:'opus'（tiering: advisor・verifier・discover=opus）。
+- **simplify skill（大diff時のコード整理）**: `skills/simplify/SKILL.md` +
+  `agents/simplifier.md`。polish分岐で`polished=false`かつ閾値超のとき1回だけ呼ぶ。
+  3段構え（simplifier=haiku提案 → メイン=sonnet裏付け適用 → verifier=opus検証）で、
+  enterpriseのopus制約（$1000/月）を踏まえopusはverifierに集中。適用後eval再実行 +
+  `set polished true` を記録。`state.polished`フラグは`transition`がpolishに入るときに
+  リセット（goalにつき1回）。critic（設計レビュー）は多様性が少ないため claude 版には
+  導入しない。
 
 ## 未実装（次の候補）
 

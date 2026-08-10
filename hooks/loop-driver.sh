@@ -62,7 +62,12 @@ if [[ -z "$verdict_level" ]]; then
   if [[ "$diff_lines" -le "$GH_POLISH_THRESHOLD" ]]; then
     echo "graphhopper: eval green（diff ${diff_lines}行・閾値${GH_POLISH_THRESHOLD}行以下）。done前に built-in /advisor で最終レビューしてください。結果は \`$GH_CLI advisor-set clean|drift \"<reason>\"\` で記録してください（記録するまでdoneに進みません）。" >&2
   else
-    echo "graphhopper: eval green（diff ${diff_lines}行・閾値${GH_POLISH_THRESHOLD}行超）。done前に \`Skill: polish\` でverifier fan-outを実行してください。結果は \`$GH_CLI verifier-set clean|drift \"<reason>\"\` で記録してください（記録するまでdoneに進みません）。" >&2
+    polished="$(gh_get polished)"
+    if [[ "$polished" != "true" ]]; then
+      echo "graphhopper: eval green（diff ${diff_lines}行・閾値${GH_POLISH_THRESHOLD}行超）。done前に \`Skill: simplify\` でコード整理を実行してください（適用後 eval 再実行 → \`$GH_CLI set polished true\`）。次の停止で \`Skill: polish\` を誘導します。記録するまでdoneに進みません。" >&2
+    else
+      echo "graphhopper: eval green（diff ${diff_lines}行・閾値${GH_POLISH_THRESHOLD}行超・simplify済み）。done前に \`Skill: polish\` でverifier fan-outを実行してください。結果は \`$GH_CLI verifier-set clean|drift \"<reason>\"\` で記録してください（記録するまでdoneに進みません）。" >&2
+    fi
   fi
   exit 2
 fi

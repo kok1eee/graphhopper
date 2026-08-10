@@ -67,6 +67,15 @@ verifier fan-out（polish）の sonnet 降格を検討したが不採用（2026-
 - よって **verifier は opus を維持**。opus 制約への対処は simplify を
   haiku提案 + sonnet適用にする 3段構えで行う（上記）
 
+### verifier レンズ重要度分離（2026-08-10 追加）
+
+「全レンズ sonnet」は不採用のまま、opus 使用を絞るため **レンズ重要度分離**を導入:
+- **requirement**（done の定義に直結）: **opus** を維持
+- **behavior / progress**（広い走査）: **sonnet**
+- 「重要」はモデル品質のみ。集約は全レンズ同等（requirement が他を上書きしない）
+- opus 使用が「最重要レンズ1体」に絞られ、大 diff 経路の opus 最終判断は requirement が
+  引き続き担保する
+
 ## 未実装（次の候補）
 
 - **headless(`claude -p`)モードでの steer 継続**: `/advisor` を実際に呼ぶアクションが無い

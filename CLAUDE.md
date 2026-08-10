@@ -37,6 +37,23 @@ designing → implementing ⇄(eval fail) → polish [router gate]
 C-2相当の不変条件: designing 中は `hooks/design-gate.sh` が source 編集を物理ブロックする。
 `.graphhopper/` への直接編集も全phaseで禁止（状態変更は `bin/graphhopper` CLI 経由のみ）。
 
+### 3要素で説明する（外部への説明用フレーミング）
+
+上記 state machine は「目標・評価基準・境界条件」の3要素で説明できる（自律ループが
+止まらず回り続けるための一般的な3要素。他の人に説明するときの語彙として使う）:
+
+- **目標（Objective）**: designing phase でメインエージェントが書く `plan/design.md`。
+  「達成できたか判定できる具体的ゴール」
+- **評価基準（Metric）**: `eval_cmd` の exit status（`hooks/loop-driver.sh`）。合否を
+  機械的に判定し、失敗なら `eval_fail` に遷移してフィードバックを返す
+- **境界条件（Boundary）**: `verdict.level` / `verifier.level` を記録するまで done に
+  進ませないゲート、`skills/discover` の round cap（既定8）、`GH_POLISH_THRESHOLD`
+  （router gate の閾値）。禁止事項・停止条件の総称
+
+このフレーミングは https://tek.jp/learning/prompt-gauntlet-loop/ の「ガントレットループ」
+記事に基づく。既存実装を後付けで言い換えただけであり、この3要素のために実装を変える
+必要はない。
+
 ## headless (`claude -p`) では GRAPHHOPPER_OFF=1 を使う
 
 `claude -p` のような print/headless モードは `/advisor` を対話的に呼び続ける前提が成立せず、

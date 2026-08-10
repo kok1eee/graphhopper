@@ -56,6 +56,17 @@ Workflow API（`agent()`/`parallel()`/`phase()`/`meta`/schema/model）は `~/mas
   リセット（goalにつき1回）。critic（設計レビュー）は多様性が少ないため claude 版には
   導入しない。
 
+### verifier 降格（sonnet）は不採用
+
+verifier fan-out（polish）の sonnet 降格を検討したが不採用（2026-08-10 判断）:
+- 大 diff 経路は `diff大 → polish → clean: done` で **built-in /advisor を通らない**
+  （/advisor は小 diff 経路専用）。verifier を sonnet に下げると大 diff の opus 最終判断が
+  消える
+- /advisor 自体のモデルは built-in 依存で opus 保証は無い（`settings.json` は
+  `claude-fable-5` 等）
+- よって **verifier は opus を維持**。opus 制約への対処は simplify を
+  haiku提案 + sonnet適用にする 3段構えで行う（上記）
+
 ## 未実装（次の候補）
 
 - **headless(`claude -p`)モードでの steer 継続**: `/advisor` を実際に呼ぶアクションが無い

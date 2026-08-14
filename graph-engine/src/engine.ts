@@ -46,6 +46,10 @@ export interface State {
   verdict: Verdict | null;
   /** polish フェーズで simplify を実行済みか（goal につき1回。polish に入る遷移で false にリセット） */
   polished: boolean;
+  /** designing終了前のdesign.md質レビュー（advisor活用、opt-in・ハードゲートなし）。設定後はphase遷移で消えない */
+  design_review: Verdict | null;
+  /** handoffの一度きり通知（transcript閾値超）を出したか。goalにつき1回だけ通知するためのdedup */
+  handoff_nudged: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -207,6 +211,8 @@ export function initState(goal: string): State {
     baseline_rev: currentRev(root),
     verdict: null,
     polished: false,
+    design_review: null,
+    handoff_nudged: false,
     created_at: ts,
     updated_at: ts,
   };
@@ -236,6 +242,15 @@ export function verdictSet(
   const state = loadState();
   state.verdict = { source, level, reason, ts: now() };
   saveState(state, `${source}_${level}`, state.phase);
+  return state;
+}
+
+/** design.md質レビュー（advisor活用）を記録する。opt-in・呼ぶかどうかはメインエージェントの裁量で、
+ * design-gate.sh の遷移条件には組み込まない（ハードゲート化しない）。 */
+export function designReviewSet(level: VerdictLevel, reason: string): State {
+  const state = loadState();
+  state.design_review = { source: "advisor", level, reason, ts: now() };
+  saveState(state, `design_review_${level}`, state.phase);
   return state;
 }
 
@@ -283,7 +298,43 @@ function formatStatus(state: State): string {
         : "(pending)"
     }`,
     `polished: ${state.polished}`,
+    `design_review: ${
+      state.design_review
+        ? `${state.design_review.level} — ${state.design_review.reason}`
+        : "(none, opt-in)"
+    }`,
     `updated_at: ${state.updated_at}`,
+  ].join("\n");
+}
+
+/** design.md/log.md の内容は埋め込まずpathを指すだけにする（長文はpathで渡す原則、skills/polish参照）。 */
+function formatHandoff(state: State): string {
+  const root = repoRoot();
+  const designPath = join(root, "plan", "design.md");
+  const logPath = join(root, "plan", "log.md");
+  const diff = diffLines(state.baseline_rev);
+  return [
+    `goal: ${state.goal || "(none)"}`,
+    `phase: ${state.phase}`,
+    `eval_cmd: ${state.eval_cmd || "(none)"}`,
+    `baseline_rev: ${state.baseline_rev || "(none)"}`,
+    `diff: baseline_revから${diff}行変更（jj diff --from ${state.baseline_rev || "(none)"}）`,
+    `verdict: ${
+      state.verdict
+        ? `${state.verdict.source}:${state.verdict.level} — ${state.verdict.reason}`
+        : "(pending)"
+    }`,
+    `design_review: ${
+      state.design_review
+        ? `${state.design_review.level} — ${state.design_review.reason}`
+        : "(none, opt-in)"
+    }`,
+    "",
+    "次のsessionへ:",
+    `1. ${existsSync(designPath) ? "plan/design.md" : "(plan/design.md 無し)"} を読む（不変・目標と境界条件）`,
+    `2. ${existsSync(logPath) ? "plan/log.md" : "(plan/log.md 無し)"} を読む（決定の経緯・棄却した代替案・進捗）`,
+    "3. `bin/graphhopper status` で最新状態を再確認",
+    "4. 現在のphaseに応じて続行する",
   ].join("\n");
 }
 
@@ -319,20 +370,34 @@ function main(): void {
     case "set": {
       const field = args[0];
       const value = args[1];
-      if (field === "polished") {
+      if (field === "polished" || field === "handoff_nudged") {
         if (value !== "true" && value !== "false") {
-          console.error("usage: engine.ts set polished <true|false>");
+          console.error(`usage: engine.ts set ${field} <true|false>`);
           process.exitCode = 1;
           break;
         }
         const state = loadState();
-        state.polished = value === "true";
-        saveState(state, "set_polished", state.phase);
-        console.log(`polished set to ${state.polished}`);
+        const boolValue = value === "true";
+        if (field === "polished") state.polished = boolValue;
+        else state.handoff_nudged = boolValue;
+        saveState(state, `set_${field}`, state.phase);
+        console.log(`${field} set to ${boolValue}`);
       } else {
         console.error(`unknown field: ${field}`);
         process.exitCode = 1;
       }
+      break;
+    }
+    case "design-set": {
+      const level = args[0];
+      const reason = args.slice(1).join(" ");
+      if (level !== "clean" && level !== "drift") {
+        console.error("usage: engine.ts design-set <clean|drift> <reason>");
+        process.exitCode = 1;
+        break;
+      }
+      const state = designReviewSet(level, reason);
+      console.log(`design review recorded: ${level}. phase: ${state.phase}`);
       break;
     }
     case "set-eval": {
@@ -369,6 +434,14 @@ function main(): void {
       );
       break;
     }
+    case "handoff": {
+      if (!stateExists()) {
+        console.log('no active goal (run: graphhopper init "<goal>")');
+        break;
+      }
+      console.log(formatHandoff(loadState()));
+      break;
+    }
     case "diff-lines": {
       const state = loadState();
       console.log(String(diffLines(state.baseline_rev)));
@@ -392,7 +465,7 @@ function main(): void {
     }
     default: {
       console.error(
-        "usage: engine.ts <init|status|get|set|set-eval|advisor-set|verifier-set|diff-lines|transition|reset> [args...]",
+        "usage: engine.ts <init|status|get|set|set-eval|advisor-set|verifier-set|design-set|diff-lines|transition|handoff|reset> [args...]",
       );
       process.exitCode = 1;
     }

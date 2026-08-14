@@ -37,6 +37,14 @@ designing → implementing ⇄(eval fail) → polish [router gate]
 C-2相当の不変条件: designing 中は `hooks/design-gate.sh` が source 編集を物理ブロックする。
 `.graphhopper/` への直接編集も全phaseで禁止（状態変更は `bin/graphhopper` CLI 経由のみ）。
 
+`plan/design.md` は designing phase 終了後は不変（`design-gate.sh` が事後編集も物理ブロック）。
+`skills/polish`/`skills/simplify` がdrift検出のアンカー（requirementsテキスト）として読むため、
+実装に合わせて書き直せると「driftをdesign.md側の書き換えで消せる」——polish/SKILL.md自身が
+警戒しているGoodhart's Lawの穴と同型の脆弱性になる。決定の経緯・棄却した代替案・進捗は
+`plan/log.md`（追記専用、design.mdとは別物、全phaseで自由に書ける）に持つ。ハードゲートは
+課さない——ログに残す価値があるかは判断であり、メインエージェントの裁量に委ねる。詳細と
+採用理由は `ROADMAP.md` 参照。
+
 ### 3要素で説明する（外部への説明用フレーミング）
 
 上記 state machine は「目標・評価基準・境界条件」の3要素で説明できる（自律ループが

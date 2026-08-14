@@ -16,10 +16,30 @@ source "$here/lib/common.sh"
 gh_disabled && exit 0
 
 GH_POLISH_THRESHOLD="${GH_POLISH_THRESHOLD:-40}"
+GH_HANDOFF_THRESHOLD_KB="${GH_HANDOFF_THRESHOLD_KB:-500}"
 
 gh_state_exists || exit 0
 
 phase="$(gh_get phase)"
+
+# handoff一度きり通知: transcriptサイズが閾値を超えたら知らせる（対応必須ではない）。
+# doneでは意味が無いので対象外。goalにつき1回だけ（handoff_nudgedでdedup）。
+# Stop hookでモデルに確実に見せるにはexit 2が要るため、通知はこのターンだけ停止を1回拒否する。
+if [[ "$phase" != "done" ]]; then
+  handoff_nudged="$(gh_get handoff_nudged)"
+  if [[ "$handoff_nudged" != "true" ]]; then
+    transcript_path="$(gh_read_hook_input | jq -r '.transcript_path // ""')"
+    if [[ -n "$transcript_path" && -f "$transcript_path" ]]; then
+      size_bytes="$(stat -c%s "$transcript_path" 2>/dev/null || stat -f%z "$transcript_path" 2>/dev/null || echo 0)"
+      size_kb=$(( size_bytes / 1024 ))
+      if (( size_kb >= GH_HANDOFF_THRESHOLD_KB )); then
+        "$GH_CLI" set handoff_nudged true >/dev/null
+        echo "graphhopper: 会話が大きくなっています（transcript ${size_kb}KB・閾値${GH_HANDOFF_THRESHOLD_KB}KB）。対応必須ではありません。必要なら \`bin/graphhopper handoff\` で次sessionへの引き継ぎテキストを出力できます（このgoalでは1回だけの通知）。" >&2
+        exit 2
+      fi
+    fi
+  fi
+fi
 
 case "$phase" in
   designing|done)

@@ -76,6 +76,65 @@ verifier fan-out（polish）の sonnet 降格を検討したが不採用（2026-
 - opus 使用が「最重要レンズ1体」に絞られ、大 diff 経路の opus 最終判断は requirement が
   引き続き担保する
 
+## 実装済み（v2 第三弾）
+
+- **design.md 不変化ゲート**: `hooks/design-gate.sh` に `plan/design.md` への
+  designing phase 終了後の編集ブロックを追加（`.graphhopper/` 直接編集ブロックと同型）。
+  `skills/polish`/`skills/simplify` が design.md をdrift検出のアンカーとして読んでいる
+  実態を確認した上で塞いだ（2026-08-14 判断）: 実装後に design.md を書き直せると
+  「driftをdesign.md側の書き換えで消せる」——polish/SKILL.md自身が警戒している
+  Goodhart's Lawの穴と同型の脆弱性になる。
+- **plan/log.md 導入（decisions/progressログ、新設）**: design.mdを不変にする以上、
+  実装中の決定経緯・棄却した代替案・残issueは別の場所に要る。検討した2案のうち
+  **新規ファイル`plan/log.md`への追記**を採用、**jjのcommit historyをそのまま進捗ログ
+  として流用する案は不採用**（2026-08-14 判断）。不採用の理由: 「決定」の単位がjjの
+  commit境界と自然には一致せず実装の流れを止める負荷が大きい／jj.mdの既存tiering
+  （軽微=1行・重要のみ背景を書く）と衝突する／squashで棄却した代替案の記録が消える。
+  plan/log.mdは**ハードゲート無し**（design-gateのような物理ブロックを課さない）。
+  「ログに残す価値があるか」自体が判断であり、メインエージェントの裁量に委ねる
+  （agent minimalism原則——強制する仕組み自体を新設しない）。
+
+## 実装済み（v2 第四弾）
+
+- **handoff機能（v1）**: `bin/graphhopper handoff`（`engine.ts` の `formatHandoff`）。
+  goal/phase/eval_cmd/baseline_rev/diff行数/verdictを`state.json`から機械的に組み立て、
+  design.md/log.mdは**内容を埋め込まずpathを指すだけ**にする（`skills/polish`の「長文は
+  pathで渡す」原則と同じ——handoff自体の出力を膨らませない）。LLM呼び出しゼロの
+  決定的なテキスト組み立てのみ（agent minimalism——判断は次sessionのメインエージェントに
+  委ね、handoffコマンド自体は配管）。
+  **クロスセッションメッセージング統合は不採用**（2026-08-14 判断）: SendMessageは
+  テキストのみでdesign.md/log.md本体は運ばない上、受信メッセージも通常プロンプトと
+  同様に使用量へ計上される。handoffの出力を新規terminalに自分で貼る／
+  `claude "$(bin/graphhopper handoff)"` で十分であり、SendMessage経由にする実質的な
+  価値が無い（自分で立ち上げれば足りる）。
+
+## 実装済み（v2 第五弾）
+
+- **design.md質レビュー（opt-in、ハードゲート無し）**: `bin/graphhopper design-set
+  clean|drift "<reason>"`（`state.design_review`、`advisor-set`/`verifier-set`と同型）。
+  design.mdを不変化した以上、雑な内容のまま永久ロックされるリスクへの安全弁として
+  検討したが、**design-gate.shの遷移条件には組み込まずhard gate化しない**（2026-08-14
+  判断）。理由: polishのrouter gateがコード判定でハード化できるのは「diff行数」という
+  実装後に確定する客観的事実が閾値になるから。design.mdの質はdesign時点では客観的な
+  閾値が存在せず（design.mdをどれだけ書くか自体がモデルの記述量で決まる）、ここに
+  ゲートを置くと「ゲートを避けるために薄く書く」自己判断エロージョンを一段ズラして
+  再生産するだけ。実害も軽い（雑なdesign.mdはverifierのrequirementレンズの確信度を
+  下げるだけで、既存のconfidence>=80フィルタが安全側に吸収する）。よって呼ぶかどうかは
+  メインエージェントの裁量に委ねるopt-in記録機構とした。`bin/graphhopper init`していない
+  単発タスクはこのコマンドの有無に関わらず影響を受けない（design-gate自体が無効なため）。
+- **handoff一度きり通知（自動トリガー、非ゲート）**: `hooks/loop-driver.sh`（Stop hook）
+  が自身のhook入力JSONから`.transcript_path`を読み、ファイルサイズが
+  `GH_HANDOFF_THRESHOLD_KB`（既定500KB）を超えたら`bin/graphhopper handoff`の利用を
+  一度だけ知らせる。実装の経緯: headlessモード判定（対話/print区別）には信頼できる
+  指標が本当に無いが、「会話が長くなったか」は別問題——手元の既存hook
+  （`todo-enforcer.sh`/`herdr-agent-state.sh`）が実際に`.transcript_path`をhook入力
+  から読んでいる実例を確認した上で採用（2026-08-14）。hookはセッションを終了/新規
+  起動できず「メッセージを出す」しかできないため、Stop hookでモデルに確実に見せる
+  ために既存のeval/polish nudgeと同じ`exit 2`方式を使うが、**dedup
+  （`state.handoff_nudged`、goalにつき1回のみ）で無限ループ化を防ぐ**。会話が長い
+  こと自体はevalの失敗やverdict未記録のような「直すべき異常」ではないため、
+  一度知らせたら二度と鳴らさない。
+
 ## 未実装（次の候補）
 
 - **headless(`claude -p`)モードでの steer 継続**: `/advisor` を実際に呼ぶアクションが無い

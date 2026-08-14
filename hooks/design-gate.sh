@@ -25,6 +25,15 @@ if [[ "$file_path" == "$GH_DIR"/* ]]; then
 fi
 
 phase="$(gh_get phase)"
+design_doc="$GH_ROOT/plan/design.md"
+
+# design.md は designing phase 終了後は不変（verifierのdrift検出アンカーのため）。
+# 決定・進捗の追記は plan/log.md へ（design.mdは書き換えず、log.mdは全phaseで自由に追記可）。
+if [[ "$phase" != "designing" ]] && [[ "$file_path" == "$design_doc" ]]; then
+  echo "graphhopper: plan/design.md は designing phase 終了後は不変です（verifierのdrift検出アンカー）。決定・進捗の追記は plan/log.md へ書いてください。" >&2
+  exit 2
+fi
+
 if [[ "$phase" != "designing" ]]; then
   exit 0
 fi
@@ -34,7 +43,6 @@ if [[ "$file_path" == "$GH_ROOT/plan/"* ]] || [[ "$file_path" == *.md ]]; then
   exit 0
 fi
 
-design_doc="$GH_ROOT/plan/design.md"
 if [[ ! -f "$design_doc" ]]; then
   echo "graphhopper: designing phase 中です。plan/design.md を先に書いてください（source編集はブロック）。" >&2
   exit 2

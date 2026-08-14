@@ -135,6 +135,42 @@ verifier fan-out（polish）の sonnet 降格を検討したが不採用（2026-
   こと自体はevalの失敗やverdict未記録のような「直すべき異常」ではないため、
   一度知らせたら二度と鳴らさない。
 
+## 実装済み（v2 第六弾）
+
+opencode版（`~/masayoshi/graphhopper-opencode`）へのhandoff基盤移植で、逆にこちら側に
+無かったものが見つかり、3点を取り込んだ（2026-08-14）:
+
+- **`.graphhopper/config.json`（プロジェクト単位の永続設定、任意・.gitignore対象）**:
+  opencode版が最初から持っていたプロジェクト単位設定ファイル方式をClaude Code版にも導入。
+  `polish_threshold_lines`/`handoff_threshold_kb`を設定できる。優先順位は
+  **env var（アドホックな一時上書き） > config.json（永続設定） > ハードコードdefault**
+  ——既存の`GH_POLISH_THRESHOLD`等のアドホックなenv var上書きを壊さないため、env varを
+  最優先に残した。`hooks/lib/common.sh`の`gh_config_get()`。`.gitignore`は
+  `.graphhopper/*` + `!.graphhopper/config.example.json`のallowlist方式（opencode版と
+  同じ）。`design-gate.sh`は`.graphhopper/`への`Edit`/`Write`ツール経由の直接編集のみ
+  ブロックするので、config.jsonの作成・編集はBash経由（`cp config.example.json
+  config.json`等）で行う——ゲートの対象外で問題ない（config.jsonはverifierのdrift検出
+  整合性に関わる「state」ではなく「設定」なので、design.md/state.jsonと同じ保護は不要）。
+- **design.md質レビューの推奨を強化**: opencode版のSKILL.mdが「criticは安価な常設nodeな
+  ので毎goal必ず呼ぶ」と強い運用規約になっているのを参考に、`CLAUDE.md`の`design-set`の
+  説明に「designingを抜ける前に1回呼ぶことを強く推奨する」を追記。ハードゲート化はしない
+  という結論（第五弾）は変えず、文言だけ強めた。
+- **handoff自動起動（パターン2）**: `bin/graphhopper handoff --launch`。
+  `crypto.randomUUID()`でsession idを事前生成し、`claude --session-id <uuid> --name
+  gh-handoff-<uuid先頭8桁> --bg --permission-mode auto "<handoffテキスト>"`を
+  `execFileSync`（argv配列、シェル文字列展開なし——goalが自由記述テキストなので
+  コマンドインジェクション対策として必須）で起動する。起動後すぐにsession id/nameが
+  分かる（claudeの標準出力を解析する必要が無い）。`--bg`は無人で返るため、
+  permission modeを明示しないと最初のEdit/Bash要求で無人のまま止まる。`auto`
+  （Anthropicの自動判定モード）をユーザー確認の上で既定にした——`acceptEdits`は
+  Bash（eval_cmd実行）がゲートされたままで実質止まる、無指定は最初のゲートで確実に
+  止まる、を比較した上での選択。既存の手動パターン（`bin/graphhopper handoff`が
+  テキストを出力するだけ、ユーザーが自分で新規session/`claude "$(...)"`を叩く）は
+  そのまま残す——用途が違う（自分で見ながら継続したいか、無人で先に進めておきたいか）。
+  argv配列でのコマンドインジェクション対策はフェイクclaudeバイナリ（実起動はせず
+  argvをファイルに書き出すだけ）で`$(rm -rf /)`等を含むgoal文字列が単一引数として
+  素通しされることを確認済み。
+
 ## 未実装（次の候補）
 
 - **headless(`claude -p`)モードでの steer 継続**: `/advisor` を実際に呼ぶアクションが無い
@@ -143,6 +179,10 @@ verifier fan-out（polish）の sonnet 降格を検討したが不採用（2026-
 
 ## opencode / pi アダプタ
 
-別ディレクトリ・別セッションで後日。Workflow は Claude Code 固有機能のため、
-opencode/pi版では別の仕組み（flywheel-opencodeの`task()`ベースfan-out等）で同等の
-verifierパターンを実装する必要がある。
+opencode版は`~/masayoshi/graphhopper-opencode`に実装済み（2026-08-05新規実装、
+`kok1eee/graphhopper-opencode`にpush済み）。Workflowが無い代わりに`task()`の手動
+fan-out + TS toolでround cap/dedupeを強制する方式。3相グラフ・agent minimalism・
+tieringはこちら側と同じ原則を踏襲しつつ、`graphhopper-critic`（pre-hoc design
+review常設node）や`graphhopper-oracle`（stuck escalation軸）等、こちら側には無い
+拡張も持つ（両者は独立に進化しており、今回のhandoff基盤のように一方に入れた改善を
+もう一方にも輸入する運用を今後も続ける）。pi版は未着手。

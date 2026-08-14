@@ -1,4 +1,5 @@
-.graphhopper/
+.graphhopper/*
+!.graphhopper/config.example.json
 graph-engine/node_modules/
 graph-engine/bun.lock
 node_modules/

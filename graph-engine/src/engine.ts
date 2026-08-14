@@ -2,7 +2,8 @@
  * graphhopper graph engine — node/edge/phase 遷移を計算し .graphhopper/state.json を更新する。
  * bun で直接実行する CLI（ビルド不要）。bin/graphhopper と hooks/*.sh から呼ばれる。
  */
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import {
   appendFileSync,
   existsSync,
@@ -338,6 +339,44 @@ function formatHandoff(state: State): string {
   ].join("\n");
 }
 
+/**
+ * handoffの自動起動（パターン2: 手動で自分で立ち上げる代わりに、バックグラウンドsessionを
+ * 直接立ち上げる）。session idは自分で生成してから渡すので、claudeの標準出力を解析せずに
+ * 起動直後からidが分かる。`--bg`は無人で返るため、permission modeを明示しないと最初の
+ * Edit/Bash要求で無人のまま止まる——`auto`（Anthropicの自動判定モード）を既定にする。
+ * shell文字列展開は使わない（goalが自由記述テキストなのでコマンドインジェクションを避ける）。
+ */
+function launchHandoff(state: State): string {
+  const text = formatHandoff(state);
+  const sessionId = randomUUID();
+  const name = `gh-handoff-${sessionId.slice(0, 8)}`;
+  try {
+    execFileSync(
+      "claude",
+      [
+        "--session-id",
+        sessionId,
+        "--name",
+        name,
+        "--bg",
+        "--permission-mode",
+        "auto",
+        text,
+      ],
+      { stdio: "inherit" },
+    );
+  } catch (e) {
+    return `error: claude起動に失敗しました（${e instanceof Error ? e.message : String(e)}）。'claude' がPATHにあるか確認してください。`;
+  }
+  return [
+    `launched: session_id=${sessionId}`,
+    `name: ${name}`,
+    `permission-mode: auto（無人継続のため。手元で見る時は claude --resume ${sessionId} で対話に切り替えられる）`,
+    `再接続（同じマシン）: claude --resume ${sessionId}`,
+    `メッセージ送信（同じマシン、ListAgentsに出ていれば）: SendMessage({ to: "${name}" })`,
+  ].join("\n");
+}
+
 function main(): void {
   const [, , cmd, ...args] = process.argv;
 
@@ -439,7 +478,11 @@ function main(): void {
         console.log('no active goal (run: graphhopper init "<goal>")');
         break;
       }
-      console.log(formatHandoff(loadState()));
+      if (args[0] === "--launch") {
+        console.log(launchHandoff(loadState()));
+      } else {
+        console.log(formatHandoff(loadState()));
+      }
       break;
     }
     case "diff-lines": {

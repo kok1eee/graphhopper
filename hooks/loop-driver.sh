@@ -15,8 +15,9 @@ source "$here/lib/common.sh"
 
 gh_disabled && exit 0
 
-GH_POLISH_THRESHOLD="${GH_POLISH_THRESHOLD:-40}"
-GH_HANDOFF_THRESHOLD_KB="${GH_HANDOFF_THRESHOLD_KB:-500}"
+# 優先順位: env var（アドホックな一時上書き） > .graphhopper/config.json（プロジェクト単位の永続設定） > ハードコードdefault
+GH_POLISH_THRESHOLD="${GH_POLISH_THRESHOLD:-$(gh_config_get polish_threshold_lines 40)}"
+GH_HANDOFF_THRESHOLD_KB="${GH_HANDOFF_THRESHOLD_KB:-$(gh_config_get handoff_threshold_kb 500)}"
 
 gh_state_exists || exit 0
 

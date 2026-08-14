@@ -45,6 +45,12 @@ C-2相当の不変条件: designing 中は `hooks/design-gate.sh` が source 編
 課さない——ログに残す価値があるかは判断であり、メインエージェントの裁量に委ねる。詳細と
 採用理由は `ROADMAP.md` 参照。
 
+designing を抜ける前は、design.md が不変化される前提として **`bin/graphhopper design-set
+clean|drift "<reason>"` を1回呼ぶことを強く推奨する**（ハードゲートではないので忘れても
+implementing へは進める。opencode版のgraphhopper-criticが「安価な常設nodeなので毎goal必ず
+呼ぶ」という強い運用規約になっているのと同じ発想——雑なdesign.mdのまま不変化されるコストは
+レビュー1回分のコストより高い）。
+
 ### 3要素で説明する（外部への説明用フレーミング）
 
 上記 state machine は「目標・評価基準・境界条件」の3要素で説明できる（自律ループが

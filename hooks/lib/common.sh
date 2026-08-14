@@ -11,6 +11,7 @@ gh_repo_root() {
 GH_ROOT="$(gh_repo_root)"
 GH_DIR="$GH_ROOT/.graphhopper"
 GH_STATE="$GH_DIR/state.json"
+GH_CONFIG="$GH_DIR/config.json"
 
 _gh_src="${BASH_SOURCE[0]:-}"
 if [[ -n "$_gh_src" ]]; then
@@ -42,4 +43,21 @@ gh_get() {
   local path="$1"
   gh_state_exists || { printf '\n'; return; }
   jq -r "getpath([\"${path//./\",\"}\"]) // \"\"" "$GH_STATE" 2>/dev/null || printf '\n'
+}
+
+# .graphhopper/config.json（プロジェクト単位の永続設定、任意・.gitignore対象）から key を読む。
+# config.example.json をコピーして使う（opencode版と同じallowlist方式）。
+# 優先順位は呼び出し側で env var > config.json > 引数のdefault にする
+# （既存の GH_POLISH_THRESHOLD 等のアドホックな env var 上書きを壊さないため）。
+gh_config_get() {
+  local key="$1" default="$2"
+  local v
+  if [[ -f "$GH_CONFIG" ]]; then
+    v="$(jq -r ".${key} // empty" "$GH_CONFIG" 2>/dev/null || true)"
+    if [[ -n "$v" ]]; then
+      printf '%s' "$v"
+      return
+    fi
+  fi
+  printf '%s' "$default"
 }
